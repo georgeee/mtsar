@@ -67,7 +67,10 @@ public class MajorityVoting extends SQUARE implements AnswerAggregator {
         final Map<Integer, AnswerAggregation> aggregations = majorityVoting.getCurrentModel().getCombinedEstLabels().entrySet().stream().
                 filter(entry -> taskIds.containsKey(entry.getKey())).
                 collect(Collectors.toMap(Map.Entry::getKey,
-                        entry -> new AnswerAggregation.Builder().setTask(taskIds.get(entry.getKey())).addAnswers(entry.getValue().getFirst()).build()
+                        entry -> new AnswerAggregation.Builder()
+                                .setTask(taskIds.get(entry.getKey()))
+                                .addAnswers(entry.getValue().getSecond(), true)
+                                .build()
                 ));
         return aggregations;
     }

@@ -22,7 +22,10 @@ import mtsar.api.sql.TaskDAO;
 import mtsar.processors.AnswerAggregator;
 import mtsar.processors.SQUARE;
 import mtsar.processors.WorkerRanker;
+import org.apache.commons.lang3.math.NumberUtils;
 import org.apache.commons.lang3.reflect.FieldUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.square.qa.algorithms.ZenCrowdEM;
 import org.square.qa.utilities.constructs.Models;
 
@@ -42,6 +45,7 @@ import static java.util.Objects.requireNonNull;
  * @see <a href="http://dx.doi.org/10.1007/s00778-013-0324-z">10.1007/s00778-013-0324-z</a>
  */
 public class ZenCrowd extends SQUARE implements WorkerRanker, AnswerAggregator {
+    private static final Logger log = LoggerFactory.getLogger(ZenCrowd.class);
     @Inject
     private Stage stage;
     private final TaskDAO taskDAO;
@@ -66,17 +70,22 @@ public class ZenCrowd extends SQUARE implements WorkerRanker, AnswerAggregator {
         final Map<Integer, Task> taskIds = tasks.stream().collect(Collectors.toMap(Task::getId, Function.identity()));
         final Models.ZenModel<Integer, Integer, String> zenModel = compute(stage, answerDAO, getTaskMap()).getZenModel();
         final ZenCrowdEM<Integer, Integer, String> zenCrowd = new ZenCrowdEM<>(zenModel);
+        zenCrowd.setNumIterations(getMaxIterations());
+        log.info("Running ZenCrowd on {} iterations", getMaxIterations());
         zenCrowd.computeLabelEstimates();
         final Map<Integer, AnswerAggregation> aggregations = zenCrowd.getCurrentModel().getCombinedEstLabels().entrySet().stream().
                 filter(entry -> taskIds.containsKey(entry.getKey())).
                 collect(Collectors.toMap(Map.Entry::getKey,
                         entry -> new AnswerAggregation.Builder().
                                 setTask(taskIds.get(entry.getKey())).
-                                addAnswers(entry.getValue().getFirst()).
-                                addConfidences(entry.getValue().getSecond().get(entry.getValue().getFirst())).
+                                addAnswers(entry.getValue().getSecond(), true).
                                 build()
                 ));
         return aggregations;
+    }
+
+    private int getMaxIterations() {
+        return NumberUtils.toInt(stage.getOptions().get("maxIter"), 50);
     }
 
     @Nonnull

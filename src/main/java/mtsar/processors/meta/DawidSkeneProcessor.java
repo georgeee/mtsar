@@ -25,12 +25,13 @@ import mtsar.api.sql.AnswerDAO;
 import mtsar.api.sql.TaskDAO;
 import mtsar.processors.AnswerAggregator;
 import mtsar.processors.WorkerRanker;
+import mtsar.util.StreamUtils;
+import org.apache.commons.lang3.math.NumberUtils;
 
 import javax.annotation.Nonnull;
 import javax.inject.Inject;
 import java.util.*;
 import java.util.function.Function;
-import java.util.function.ToDoubleFunction;
 import java.util.stream.Collectors;
 
 import static java.util.Objects.requireNonNull;
@@ -59,10 +60,6 @@ public class DawidSkeneProcessor implements WorkerRanker, AnswerAggregator {
         this.answerDAO = requireNonNull(answerDAO);
     }
 
-    private static <T> Comparator<T> comparingDouble(ToDoubleFunction<T> keyExtractor) {
-        return Comparator.comparingDouble(keyExtractor).reversed();
-    }
-
     @Override
     @Nonnull
     public Map<Integer, AnswerAggregation> aggregate(@Nonnull Collection<Task> tasks) {
@@ -75,8 +72,15 @@ public class DawidSkeneProcessor implements WorkerRanker, AnswerAggregator {
                 datum -> {
                     final Task task = taskMap.get(Integer.valueOf(datum.getName()));
                     final Map<String, Double> probabilities = datum.getProbabilityVector(Datum.ClassificationMethod.DS_Soft);
-                    final Map.Entry<String, Double> winner = probabilities.entrySet().stream().sorted(comparingDouble(Map.Entry::getValue)).findFirst().get();
-                    return new AnswerAggregation.Builder().setTask(task).addAnswers(winner.getKey()).addConfidences(winner.getValue()).build();
+                    AnswerAggregation.Builder builder = new AnswerAggregation.Builder().setTask(task);
+                    probabilities.entrySet().stream().sorted(StreamUtils.comparingDouble(Map.Entry::getValue)).forEach(e -> {
+                        if (e.getValue() > 0) {
+                            builder.addAnswers(e.getKey());
+                            builder.addConfidences(e.getValue());
+                        }
+                    });
+//                    final Map.Entry<String, Double> winner = probabilities.entrySet().stream().sorted(comparingDouble(Map.Entry::getValue)).findFirst().get();
+                    return builder.build();
                 }
         ));
 
@@ -103,6 +107,14 @@ public class DawidSkeneProcessor implements WorkerRanker, AnswerAggregator {
         return taskDAO.listForStage(stage.getId()).stream().collect(Collectors.toMap(Task::getId, Function.identity()));
     }
 
+    private int getMaxIterations() {
+        return NumberUtils.toInt(stage.getOptions().get("maxIter"), 50);
+    }
+
+    private double getPrecision() {
+        return NumberUtils.toDouble(stage.getOptions().get("precision"), 0.0001);
+    }
+
     private DawidSkene compute(Map<Integer, Task> taskMap) {
         final Set<Category> categories = taskMap.values().stream().
                 flatMap(task -> task.getAnswers().stream().map(Category::new)).
@@ -123,7 +135,7 @@ public class DawidSkeneProcessor implements WorkerRanker, AnswerAggregator {
             }
         }
 
-        ds.estimate(taskMap.size() <= 50 ? 50 : taskMap.size(), 0.0001);
+        ds.estimate(taskMap.size() <= getMaxIterations() ? getMaxIterations() : taskMap.size(), getPrecision());
 
         return ds;
     }

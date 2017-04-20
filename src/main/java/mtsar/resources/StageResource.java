@@ -17,10 +17,7 @@
 package mtsar.resources;
 
 import io.dropwizard.jersey.PATCH;
-import mtsar.api.Answer;
-import mtsar.api.Stage;
-import mtsar.api.Task;
-import mtsar.api.Worker;
+import mtsar.api.*;
 import mtsar.api.csv.AnswerCSV;
 import mtsar.api.csv.TaskCSV;
 import mtsar.api.csv.WorkerCSV;
@@ -89,29 +86,51 @@ public class StageResource {
     }
 
     @POST
-    public Response createStage(@Context UriInfo uriInfo, @FormParam("id") String id, @FormParam("description") String description, @FormParam("workerRanker") String workerRanker, @FormParam("taskAllocator") String taskAllocator, @FormParam("answerAggregator") String answerAggregator) {
+    public Response createStage(@Context UriInfo uriInfo, @FormParam("id") String id, @FormParam("description") String description,
+                                @FormParam("workerRanker") String workerRanker, @FormParam("taskAllocator") String taskAllocator,
+                                @FormParam("answerAggregator") String answerAggregator, @FormParam("options") String options) {
         if (stageDAO.find(id) != null) throw new WebApplicationException(Response.Status.CONFLICT);
-        final String stageId = stageDAO.insert(new Stage.Definition.Builder().
-                setId(id).
-                setDescription(description).
-                setWorkerRanker(workerRanker).
-                setTaskAllocator(taskAllocator).
-                setAnswerAggregator(answerAggregator).
-                build());
+        final Stage.Definition.Builder builder = new Stage.Definition.Builder();
+        if (options != null) {
+            builder.setOptions(options);
+        }
+        builder.setId(id)
+                .setDescription(description)
+                .setWorkerRanker(workerRanker)
+                .setTaskAllocator(taskAllocator)
+                .setAnswerAggregator(answerAggregator);
+        final String stageId = stageDAO.insert(builder.build());
         return Response.created(getStageURI(uriInfo, stageId)).build();
     }
 
     @PATCH
     @Path("{stage}")
-    public Response updateStage(@Context UriInfo uriInfo, @PathParam("stage") String id, @FormParam("description") String description, @FormParam("workerRanker") String workerRanker, @FormParam("taskAllocator") String taskAllocator, @FormParam("answerAggregator") String answerAggregator) {
+    public Response updateStage(@Context UriInfo uriInfo, @PathParam("stage") String id,
+                                @FormParam("description") String description, @FormParam("workerRanker") String workerRanker,
+                                @FormParam("taskAllocator") String taskAllocator, @FormParam("answerAggregator") String answerAggregator,
+                                @FormParam("options") String options) {
         final Stage.Definition definition = stageDAO.find(id);
         if (definition == null) throw new WebApplicationException(Response.Status.NOT_FOUND);
-        stageDAO.update(Stage.Definition.Builder.from(definition).
-                setDescription(description).
-                setWorkerRanker(workerRanker).
-                setTaskAllocator(taskAllocator).
-                setAnswerAggregator(answerAggregator).
-                build());
+        final Stage.Definition.Builder builder = Stage.Definition.Builder.from(definition);
+        if (description != null) {
+            builder.setDescription(description);
+        }
+        if (workerRanker != null) {
+            builder.setWorkerRanker(workerRanker);
+        }
+        if (taskAllocator != null) {
+            builder.setTaskAllocator(taskAllocator);
+        }
+        if (answerAggregator != null) {
+            builder.setAnswerAggregator(answerAggregator);
+        }
+        if (answerAggregator != null) {
+            builder.setAnswerAggregator(answerAggregator);
+        }
+        if (options != null) {
+            builder.setOptions(options);
+        }
+        stageDAO.update(builder.build());
         return Response.seeOther(getStageURI(uriInfo, definition.getId())).build();
     }
 

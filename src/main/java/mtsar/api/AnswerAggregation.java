@@ -19,10 +19,12 @@ package mtsar.api;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonPOJOBuilder;
+import mtsar.util.StreamUtils;
 import org.inferred.freebuilder.FreeBuilder;
 
 import javax.xml.bind.annotation.XmlRootElement;
 import java.util.List;
+import java.util.Map;
 
 @FreeBuilder
 @XmlRootElement
@@ -57,5 +59,17 @@ public interface AnswerAggregation {
             while (getConfidences().size() < getAnswers().size()) addConfidences(0.0);
             return super.build();
         }
+
+        public Builder addAnswers(Map<String, Double> confidenceMap, boolean ignoreZeros) {
+            confidenceMap.entrySet().stream()
+                    .filter(e -> !ignoreZeros || e.getValue() > 0)
+                    .sorted(StreamUtils.comparingDouble(Map.Entry::getValue))
+                    .forEach(e -> {
+                        addConfidences(e.getValue());
+                        addAnswers(e.getKey());
+                    });
+            return this;
+        }
+
     }
 }
